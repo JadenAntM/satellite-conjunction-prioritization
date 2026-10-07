@@ -1,0 +1,10 @@
+# Fixed experiment settings. Changing them creates a different experiment.
+cutoffs = [2, 3, 4]
+primary_cutoff = 3
+information_sets = ["A", "B", "C", "D"]
+families = ["logistic", "random_forest", "hgb"]
+folds = 5
+split_seed = 20261005
+bootstrap_seed = 20261055
+bootstrap_repeats = 1000
+budgets = [0.01, 0.02, 0.05, 0.10]

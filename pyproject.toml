@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "satellite-conjunction-prioritization"
+version = "0.1.0"
+description = "Cutoff-safe satellite conjunction ranking and information ablation"
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.5,<2.6",
+  "pandas>=3.0,<3.1",
+  "scikit-learn>=1.9,<1.10",
+  "matplotlib>=3.11,<3.12",
+  "requests>=2.34,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.1,<10"]
+
+[project.scripts]
+conjunctions = "conjunctions.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
