@@ -1,4 +1,4 @@
-"""Project command line: download, prepare, run, report and calibrate."""
+"""Project command line: preparation, experiments, calibration and milestone exports."""
 
 import os
 os.environ.setdefault("OMP_NUM_THREADS", "2")
@@ -53,6 +53,9 @@ def main(argv=None):
     calibration = commands.add_parser("calibrate", help="Nested calibration for D at the primary cutoff")
     calibration.add_argument("--run", required=True)
     calibration.add_argument("--processed", default="data/processed")
+    milestone = commands.add_parser("milestone", help="Export report tables, figures, error analysis and an offline demo")
+    milestone.add_argument("--run", required=True)
+    milestone.add_argument("--output", required=True, help="New output directory; existing directories are protected")
     args = parser.parse_args(argv)
     try:
         if args.command == "download":
@@ -68,5 +71,8 @@ def main(argv=None):
         elif args.command == "calibrate":
             from .calibration import calibrate_run
             calibrate_run(args.processed, args.run)
+        elif args.command == "milestone":
+            from .milestone import export_milestone
+            print(f"Milestone materials: {export_milestone(args.run, args.output)}")
     except (ValueError, FileNotFoundError, FileExistsError) as error:
         parser.exit(2, f"Error: {error}\n")
