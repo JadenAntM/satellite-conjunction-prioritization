@@ -49,6 +49,16 @@ python -m conjunctions calibrate --run results/runs/main
 
 Mission evaluation uses risk-only Logistic Regression and snapshot/history-enhanced Random Forest comparisons. Calibration fits Platt/isotonic mappings using inner training folds; outer labels are only used for evaluation.
 
+## Prepare the progress report
+
+Once a run is complete, export tables, ranking curves, error-analysis CSVs and an offline ranking demonstration without retraining:
+
+```bash
+python -m conjunctions milestone --run results/runs/main --output results/milestone/main
+```
+
+Open `results/milestone/main/REPORT_GUIDE.md` and `ranking_demo.html` locally. Exports verify the source prediction hash and protect existing directories. Generated files remain local. See [the progress report checklist](docs/progress_report.md) for the course requirements, interpretation notes, reproducibility handoff and submission checklist.
+
 ## What we compare
 
 | Set | Information | Fields |
