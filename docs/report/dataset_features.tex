@@ -1,0 +1,47 @@
+% Draft: Dataset (10%) and Model Inputs/Features (10%) sections for the course LaTeX template.
+% Numbers come from `python -m conjunctions prepare` and
+% `python -m conjunctions describe --archive data/raw/esa_collision_dataset.zip --output results/data_summary/<name>`
+% (source SHA-256 df1500...0bb). Copy that folder's dataset_tables.tex and dataset_overview.png next to
+% main.tex and add dataset_features.bib to custom.bib. Regenerate if the data pipeline changes.
+
+\section{Dataset}
+\label{sec:dataset}
+
+We use the ESA Collision Avoidance Challenge release \citep{esa2021dataset,uriot2022challenge}, licensed CC BY 4.0. It contains 199,082 anonymized conjunction data messages (CDMs) recorded between 2015 and 2019 \citep{uriot2022challenge} across 15,321 conjunction events, with 103 columns per message. A CDM is a warning about a close approach between a \emph{target} satellite and a \emph{chaser} object. Each event is a sequence of CDMs with updated estimates of the time to closest approach (TCA), miss distance, position uncertainty and collision risk (base-10 logarithm). The 221\,MB archive is not included in our submission; the code downloads it from Zenodo and checks its SHA-256. No manual annotation is involved.
+
+\paragraph{Examples and label.} Each example is one event observed at a cutoff $k$ days before TCA. Predictors may only use messages with time to TCA $\geq k$. The label comes from the event's final message, which must fall in the last day before TCA ($0 \le t < 1$). The event is a \emph{high endpoint} (positive) if that message reports log-risk $\geq -6$. The label is therefore a later risk estimate, not an observed collision.
+
+\paragraph{Cleaning and eligibility.} We remove exact duplicate rows and would quarantine events with a missing time or risk, two messages at the same time, or inconsistent mission IDs. None of these checks removed anything in this release. Infinite values become missing. Missing predictors are imputed later within training folds (Section~\ref{sec:features}); labels are never imputed. Event eligibility then removes 225 events with fewer than two messages and 4,142 whose final message is not in the last day before TCA (including events ending after TCA). This leaves 10,954 events. Requiring a message visible at the cutoff leaves 10,032, 9,388 and 8,694 events at 2, 3 and 4 days.
+
+\paragraph{Matched population.} Three days is our primary horizon; two and four days are sensitivity checks. So that horizons are compared on the same examples, every cutoff uses the 8,694 events eligible at four days. Only the visible messages change between cutoffs (Table~\ref{tab:population}). The population has 160 high endpoints (1.84\%), so predicting ``low'' for every event would already reach 98.2\% accuracy.
+
+\input{dataset_tables} % tab:population, tab:object-types, tab:feature-groups
+
+\paragraph{Properties.} Events come from 19 anonymized missions; the largest four hold 61\% of events and have positive rates from 0.3\% to 2.5\%. At three days, an event has a median of 11 visible messages (interquartile range 8--12) spanning 3.6 days. Only 2.4\% have a single visible message. Message counts look alike for both classes, but the latest visible risk does not (Figure~\ref{fig:dataset}): 83\% of high endpoints already show log-risk $\geq -6$ at three days, against 5\% of low endpoints. Many low endpoints sit at $-30$, the release's floor value for risk. Debris is the most common chaser class (Table~\ref{tab:object-types}). The reported class does not say whether a payload is active.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{dataset_overview.png}
+\caption{Matched cohort at the 3-day cutoff by final-message endpoint: visible message count (top) and latest visible log-risk with the $-6$ threshold (bottom). Each class is normalized separately.}
+\label{fig:dataset}
+\end{figure}
+
+\paragraph{Related events and folds.} Some events share messages with identical mission, time, risk and miss distance, which suggests related records of the same encounter. If one such event were in training and the other in evaluation, scores could be inflated. We therefore join any events that share such a message into a \emph{related group}. This affects 57 pairs, giving 8,637 groups. We do not attempt to recover physical satellite identities. Five-fold stratified group cross-validation assigns whole groups to folds. Each fold has 32 positives among about 1,739 events, and the same folds are reused at every cutoff.
+
+\section{Model Inputs and Features}
+\label{sec:features}
+
+All inputs are hand-specified tabular features; we do no representation learning. To test whether each kind of information helps, we compare four fixed input sets (Table~\ref{tab:feature-groups}):
+\begin{itemize}
+\item \textbf{A} (1 feature): latest visible log-risk.
+\item \textbf{B} (97): fields of the latest visible CDM. These are time to TCA; risk estimates, including the Mahalanobis distance (miss distance scaled by uncertainty); relative position and velocity; encounter geometry; the chaser class; and, for both objects, orbit and orbit-determination fields (observation counts, fit residuals and span, orbital elements, apogee/perigee, drag and radiation-pressure coefficients) and uncertainty fields (standard deviations and covariance terms).
+\item \textbf{C} (50): the number of visible messages, the time they span, and six summary statistics for each of eight fields: risk, miss distance, and both objects' position standard deviations in the radial, along-track and cross-track directions.
+\item \textbf{D} (147): B and C together. Comparing D with B measures what message history adds beyond the latest snapshot.
+\end{itemize}
+
+\paragraph{Feature engineering.} We chose history fields that directly describe the encounter's risk and how well it is known. For each, we compute the mean, the standard deviation, the maximum, the change from the first to the latest message, that change per day of visible span, and the change over the last message. Levels ignore missing values; changes are missing unless both messages are observed. With one visible message, levels equal the latest value, the standard deviation and change are 0, and the per-day change and last change are missing. Because C contains levels as well as trends, the D-versus-B comparison, not C alone, is our test of history. Every statistic uses only messages at or before the cutoff. Tests confirm that altering or adding later messages leaves all features unchanged.
+
+\paragraph{Preprocessing.} Transformations are fitted on training folds only. Numeric features receive median imputation and a missing-value indicator. Latest log-risk and the six history risk statistics stay on their logarithmic scale. The other 139 numeric features receive a signed $\log(1+|x|)$ transform, because miss distances, uncertainties and covariance determinants span many orders of magnitude. The chaser class is one-hot encoded, and classes unseen in training are ignored. Logistic regression also standardizes its inputs. Of the 147 inputs, 96 are never missing. The 30 velocity-related uncertainty fields are missing in 10.1\% of events. The chaser's radar cross-section estimate is missing most often (30\%), and no input is missing in more than half of events.
+
+\paragraph{Selection and augmentation.} The inputs form a fixed allowlist chosen before evaluation; we did not select features using evaluation scores. Event and mission IDs, labels, final risk and fold assignments are never inputs. The four space-weather indices (F10, F3M, SSN, AP) are excluded. % TODO(team): agree on and state the reason for this exclusion.
+We neither augment the data nor synthesize additional positive examples.
