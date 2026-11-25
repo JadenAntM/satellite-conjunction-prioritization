@@ -40,7 +40,7 @@ def load_cohorts(directory, config):
             raise ValueError("Related group crosses missions; mission exclusion needs a stricter contract")
         if not set(feature_columns("D")).issubset(data.columns):
             raise ValueError("Prepared representation is incomplete")
-    audit = json.loads((Path(directory) / "audit.json").read_text())
+    audit = json.loads((Path(directory) / "audit.json").read_text(encoding="utf-8"))
     for key in ("cutoffs", "folds", "split_seed"):
         if audit["preparation_config"][key] != config[key]:
             raise ValueError(f"Prepared {key} differs from the requested config; prepare a new directory")
@@ -75,7 +75,7 @@ def run_experiment(directory, results, name, config, scheme="event"):
         "evidence_status": "Exploratory internal validation on a previously explored public benchmark; not an independent fresh test.",
     }
     output.mkdir(parents=True)
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     predictions, fold_metrics = [], []
     started = time.monotonic()
     fits = 0
@@ -109,13 +109,13 @@ def run_experiment(directory, results, name, config, scheme="event"):
     manifest.update(completed_utc=datetime.now(timezone.utc).isoformat(), model_fits=fits,
                     elapsed_seconds=time.monotonic() - started,
                     prediction_sha256=sha256(output / "predictions.csv"))
-    (output / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return output
 
 
 def summarize_run(output):
     output = Path(output)
-    manifest = json.loads((output / "manifest.json").read_text())
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     if "completed_utc" not in manifest:
         raise ValueError("Only completed runs can be summarized")
     if sha256(output / "predictions.csv") != manifest["prediction_sha256"]:
