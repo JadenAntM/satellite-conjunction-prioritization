@@ -87,7 +87,7 @@ def feature_inventory(events):
 
 def read_processed(processed):
     processed = Path(processed)
-    audit = json.loads((processed / "audit.json").read_text())
+    audit = json.loads((processed / "audit.json").read_text(encoding="utf-8"))
     config = audit["preparation_config"]
     if config["primary_cutoff"] not in config["cutoffs"]:
         raise ValueError("Primary cutoff is absent from the prepared cutoffs")
@@ -247,7 +247,7 @@ def write_latex(population, primary_groups, objects, cutoff, output):
               f"\\caption{{Raw input columns per information set at the {cutoff}-day cutoff, before missing "
               r"indicators and one-hot encoding, with the median share of events missing each column. OD: orbit determination. A is contained in B; D is B plus C.}", r"\label{tab:feature-groups}",
               r"\end{table}"]
-    (output / "dataset_tables.tex").write_text("\n".join(lines) + "\n")
+    (output / "dataset_tables.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def make_figure(events, cutoff, output):
@@ -369,7 +369,7 @@ def describe_dataset(processed, output, archive=None):
     excluded.to_csv(output / "excluded_source_fields.csv", index=False)
     write_latex(population, groups, objects, cutoff, output)
     make_figure(events, cutoff, output)
-    (output / "SUMMARY.md").write_text(summary_markdown(audit, population, objects, inventory, lengths, cutoff, sizes, removals))
+    (output / "SUMMARY.md").write_text(summary_markdown(audit, population, objects, inventory, lengths, cutoff, sizes, removals), encoding="utf-8")
     provenance = {
         "processed_directory": str(processed),
         "primary_cutoff": cutoff,
@@ -379,5 +379,5 @@ def describe_dataset(processed, output, archive=None):
         "snapshot_columns": len(SNAPSHOT_COLUMNS),
         "history_columns": len(HISTORY_COLUMNS),
     }
-    (output / "provenance.json").write_text(json.dumps(provenance, indent=2))
+    (output / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
     return output
