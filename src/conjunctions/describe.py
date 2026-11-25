@@ -156,6 +156,30 @@ def sequence_lengths(tables):
     return pd.DataFrame(rows)
 
 
+def group_sizes(events):
+    sizes = events.groupby("evaluation_group").size().value_counts().sort_index()
+    return pd.DataFrame({"events_in_group": sizes.index, "groups": sizes.values,
+                         "events": sizes.index * sizes.values})
+
+
+def attrition(clean, cutoffs):
+    """Sequential event exclusions mirroring build_events, ending at the native count per cutoff."""
+    per_event = clean.groupby("event_id").time_to_tca.agg(messages="size", first="max", final="min")
+    rows = [{"step": "events after cleaning", "removed": 0, "remaining": len(per_event)}]
+    remaining = per_event
+    for step, keep in [("fewer than two messages", lambda d: d.messages >= 2),
+                       ("final message not within the last day before TCA",
+                        lambda d: (d.final >= 0) & (d.final < 1))]:
+        kept = remaining[keep(remaining)]
+        rows.append({"step": step, "removed": len(remaining) - len(kept), "remaining": len(kept)})
+        remaining = kept
+    for cutoff in sorted(cutoffs):
+        visible = remaining[remaining["first"] >= cutoff]
+        rows.append({"step": f"no message visible at {cutoff} days", "removed": len(remaining) - len(visible),
+                     "remaining": len(visible), "cutoff_days": cutoff})
+    return pd.DataFrame(rows)
+
+
 def fold_table(events):
     table = (events.groupby("fold").agg(events=("label", "size"), positives=("label", "sum"),
                                         related_groups=("evaluation_group", "nunique"),
@@ -178,6 +202,11 @@ def group_summary(inventory):
 
 LATEX_SPECIAL = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "_": r"\_", "#": r"\#", "$": r"\$",
                  "{": r"\{", "}": r"\}", "~": r"\textasciitilde{}", "^": r"\textasciicircum{}"}
+
+
+def short_group(group):
+    """Compact label so the feature-group table fits one template column."""
+    return group.replace("orbit and orbit determination", "orbit/OD").replace("uncertainty/covariance", "uncertainty")
 
 
 def latex_escape(text):
@@ -206,17 +235,17 @@ def write_latex(population, primary_groups, objects, cutoff, output):
               r"does not establish whether a payload is active.}", r"\label{tab:object-types}",
               r"\end{table}", ""]
     lines += [r"\begin{table}[t]", r"\centering", r"\small", r"\begin{tabular}{llrr}", r"\hline",
-              r"Set & Source group & Features & Median missing \\", r"\hline"]
+              r"Set & Source group & Features & Missing \\", r"\hline"]
     previous = None
-    for row in primary_groups.itertuples():
+    for row in primary_groups[primary_groups.information_set != "D"].itertuples():
         if previous is not None and row.information_set != previous:
             lines.append(r"\hline")
         previous = row.information_set
-        lines.append(f"{row.information_set} & {latex_escape(row.group)} & {row.features} & "
+        lines.append(f"{row.information_set} & {latex_escape(short_group(row.group))} & {row.features} & "
                      f"{100 * row.median_missing_fraction:.1f}\\% \\\\")
     lines += [r"\hline", r"\end{tabular}",
               f"\\caption{{Raw input columns per information set at the {cutoff}-day cutoff, before missing "
-              r"indicators and one-hot encoding. D is B plus C.}", r"\label{tab:feature-groups}",
+              r"indicators and one-hot encoding, with the median share of events missing each column. OD: orbit determination. A is contained in B; D is B plus C.}", r"\label{tab:feature-groups}",
               r"\end{table}"]
     (output / "dataset_tables.tex").write_text("\n".join(lines) + "\n")
 
@@ -228,7 +257,7 @@ def make_figure(events, cutoff, output):
     import matplotlib.pyplot as plt
 
     high, low = events[events.label == 1], events[events.label == 0]
-    figure, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+    figure, axes = plt.subplots(2, 1, figsize=(4.8, 5.6))  # one column of the two-column template
     limit = 40
     clipped = events.visible_count.max() > limit
     bins = np.arange(.5, min(events.visible_count.max(), limit) + 1.5)
@@ -245,14 +274,14 @@ def make_figure(events, cutoff, output):
     for ax in axes:
         ax.legend(fontsize=7)
         ax.grid(alpha=.2)
-    figure.suptitle("Matched cohort by final-message endpoint (descriptive, not a model input selection)", fontsize=10)
+        ax.xaxis.label.set_size(9)
     figure.tight_layout()
     figure.savefig(output / "dataset_overview.png", dpi=160)
     figure.savefig(output / "dataset_overview.svg")
     plt.close(figure)
 
 
-def summary_markdown(audit, population, objects, inventory, lengths, cutoff):
+def summary_markdown(audit, population, objects, inventory, lengths, cutoff, sizes, removals=None):
     primary = population[population.cutoff_days == cutoff].iloc[0]
     count = {k: int(primary[k]) for k in ("matched_events", "matched_positives", "related_groups", "missions")}
     single = lengths[(lengths.cutoff_days == cutoff) & (lengths.subset == "all")].iloc[0]
@@ -276,6 +305,8 @@ def summary_markdown(audit, population, objects, inventory, lengths, cutoff):
         f"{primary.median_visible_span_days:.2f} days; {100 * single.single_message_share:.1f}% of events have "
         "a single visible message (history levels then equal the latest value, SD and change are 0, "
         "rate and last change are missing).",
+        f"- Related groups: {int(sizes[sizes.events_in_group > 1].groups.sum())} contain more than one event "
+        f"(largest has {int(sizes.events_in_group.max())} events); the rest are single events.",
         f"- Majority-class accuracy would be {100 * (1 - primary.matched_prevalence):.2f}%, which is why accuracy "
         "is not a headline metric.", "",
         "## Chaser classes", "",
@@ -287,16 +318,31 @@ def summary_markdown(audit, population, objects, inventory, lengths, cutoff):
         "in this cohort.",
         "- Constant columns are kept: the allowlist is fixed before evaluation, and imputers/encoders tolerate them.",
         "- Missing indicators and one-hot encoding add model columns beyond these counts; they are fitted per training fold.",
+        *([] if removals is None else [
+            "", "## Event eligibility (from the raw archive)", "",
+            "Cutoff rows each start from the events left after the first two rules.", "",
+            "| Step | Removed | Remaining |", "| --- | ---: | ---: |",
+            *[f"| {r.step} | {r.removed:,} | {r.remaining:,} |" for r in removals.itertuples()]]),
         "", "Label-based counts here are cohort descriptions. No feature or setting was selected from them.", "",
     ]
     return "\n".join(lines)
 
 
-def describe_dataset(processed, output):
+def describe_dataset(processed, output, archive=None):
     processed, audit, config, tables, hashes = read_processed(processed)
     output = Path(output)
     if output.exists():
         raise FileExistsError("Output directory exists; choose a new directory")
+    removals = None
+    if archive is not None:
+        from .archive import read_messages
+        from .data import clean_messages
+        clean, _ = clean_messages(read_messages(archive))
+        removals = attrition(clean, config["cutoffs"])
+        native = {row["cutoff"]: row["events"] for row in audit.get("native_counts", [])}
+        final = removals.dropna(subset=["cutoff_days"])
+        if any(native.get(int(r.cutoff_days)) != r.remaining for r in final.itertuples()):
+            raise ValueError("Eligibility counts from the archive differ from the prepared audit")
     cutoff = config["primary_cutoff"]
     events = tables[cutoff]
     population = population_table(audit, tables)
@@ -306,6 +352,7 @@ def describe_dataset(processed, output):
     folds = fold_table(events)
     inventory = feature_inventory(events)
     groups = group_summary(inventory)
+    sizes = group_sizes(events)
     excluded = pd.DataFrame([{"field": f, "reason": EXCLUDED_SOURCE_FIELDS.get(f, "latest-message predictor")}
                              for f in EXPECTED_COLUMNS if f not in LATEST_FIELDS])
     output.mkdir(parents=True)
@@ -314,12 +361,15 @@ def describe_dataset(processed, output):
     missions.to_csv(output / "missions.csv", index=False)
     lengths.to_csv(output / "sequence_lengths.csv", index=False)
     folds.to_csv(output / "folds.csv", index=False)
+    sizes.to_csv(output / "group_sizes.csv", index=False)
+    if removals is not None:
+        removals.to_csv(output / "attrition.csv", index=False)
     inventory.to_csv(output / "feature_inventory.csv", index=False)
     groups.to_csv(output / "feature_groups.csv", index=False)
     excluded.to_csv(output / "excluded_source_fields.csv", index=False)
     write_latex(population, groups, objects, cutoff, output)
     make_figure(events, cutoff, output)
-    (output / "SUMMARY.md").write_text(summary_markdown(audit, population, objects, inventory, lengths, cutoff))
+    (output / "SUMMARY.md").write_text(summary_markdown(audit, population, objects, inventory, lengths, cutoff, sizes, removals))
     provenance = {
         "processed_directory": str(processed),
         "primary_cutoff": cutoff,

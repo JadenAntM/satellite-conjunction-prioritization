@@ -76,7 +76,8 @@ def test_describe_exports_tables_without_touching_inputs(processed, tmp_path):
     excluded = set(pd.read_csv(output / "excluded_source_fields.csv").field)
     assert excluded == {"event_id", "mission_id", "F10", "F3M", "SSN", "AP"}
     tex = (output / "dataset_tables.tex").read_text()
-    assert r"\label{tab:population}" in tex and "50.00\\%" in tex and "uncertainty/covariance" in tex
+    assert r"\label{tab:population}" in tex and "50.00\\%" in tex
+    assert "B & target uncertainty &" in tex and "\nD & " not in tex  # short labels; D rows omitted
     assert (output / "dataset_overview.png").stat().st_size > 0
     assert "4 events, 2 high endpoints" in (output / "SUMMARY.md").read_text()
     with pytest.raises(FileExistsError):
@@ -121,3 +122,38 @@ def test_sequence_lengths_tolerate_an_absent_endpoint_class():
     table = sequence_lengths({3: events}).set_index("subset")
     assert table.loc["high endpoint", "events"] == 0 and pd.isna(table.loc["high endpoint", "median"])
     assert table.loc["all", "median"] == 2
+
+
+def test_attrition_mirrors_event_eligibility(messages):
+    from conjunctions.describe import attrition
+    single = messages[(messages.event_id == 1) & (messages.time_to_tca == 4)].assign(event_id=8)
+    late = messages[messages.event_id == 2].assign(event_id=9)
+    late.loc[late.time_to_tca == .5, "time_to_tca"] = -.1
+    short = messages[(messages.event_id == 3) & (messages.time_to_tca < 3)].assign(event_id=10)
+    clean, _ = clean_messages(pd.concat([messages, single, late, short]))
+    table = attrition(clean, [2, 3, 4]).set_index("step")
+    assert table.loc["events after cleaning", "remaining"] == 7
+    assert table.loc["fewer than two messages", "removed"] == 1
+    assert table.loc["final message not within the last day before TCA", "removed"] == 1
+    for cutoff in (2, 3, 4):
+        row = table.loc[f"no message visible at {cutoff} days"]
+        assert row.remaining == len(build_events(clean, cutoff))
+    assert table.loc["no message visible at 4 days", "removed"] == 1
+
+
+def test_group_sizes_count_multi_event_groups():
+    from conjunctions.describe import group_sizes
+    sizes = group_sizes(pd.DataFrame({"evaluation_group": [1, 1, 2, 3, 3, 3]}))
+    assert sizes.to_dict("list") == {"events_in_group": [1, 2, 3], "groups": [1, 1, 1], "events": [1, 2, 3]}
+
+
+def test_archive_counts_must_match_the_prepared_audit(processed, tmp_path, monkeypatch, messages):
+    import conjunctions.archive
+    monkeypatch.setattr(conjunctions.archive, "read_messages", lambda path: messages)
+    assert (describe_dataset(processed, tmp_path / "ok", archive="x") / "attrition.csv").exists()
+    audit = json.loads((processed / "audit.json").read_text())
+    audit["native_counts"][0]["events"] += 1
+    (processed / "audit.json").write_text(json.dumps(audit))
+    with pytest.raises(ValueError, match="differ from the prepared audit"):
+        describe_dataset(processed, tmp_path / "bad", archive="x")
+    assert not (tmp_path / "bad").exists()

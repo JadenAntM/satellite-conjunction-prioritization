@@ -46,6 +46,7 @@ def main(argv=None):
     describe = commands.add_parser("describe", help="Export dataset/feature tables and figures from prepared data")
     describe.add_argument("--processed", default="data/processed")
     describe.add_argument("--output", required=True, help="New output directory; existing directories are protected")
+    describe.add_argument("--archive", help="Optional verified archive, to also report event eligibility attrition")
     run = commands.add_parser("run", help="Fit the fixed experiment and summarize saved OOF predictions")
     run.add_argument("--processed", default="data/processed")
     run.add_argument("--results", default="results/runs")
@@ -67,7 +68,7 @@ def main(argv=None):
             print(json.dumps(prepare(args.archive, args.output, read_config(args.config)), indent=2))
         elif args.command == "describe":
             from .describe import describe_dataset
-            print(f"Dataset summary: {describe_dataset(args.processed, args.output)}")
+            print(f"Dataset summary: {describe_dataset(args.processed, args.output, args.archive)}")
         elif args.command == "run":
             output = run_experiment(args.processed, args.results, args.name, read_config(args.config), args.scheme)
             summarize_run(output)
