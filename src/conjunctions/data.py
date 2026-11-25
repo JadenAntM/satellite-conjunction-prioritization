@@ -109,14 +109,17 @@ def prepare(archive, directory, config):
         raise FileExistsError("Processed directory is not empty; choose a new directory")
     raw = read_messages(archive)
     clean, audit = clean_messages(raw)
-    # Raw source fields remain numeric after the official schema read.
-    groups = related_groups(raw)
+    # Group on cleaned messages: a quarantined event with two mission IDs could otherwise
+    # join events from different missions into one group.
+    groups = related_groups(clean)
     native = {}
     for cutoff in config["cutoffs"]:
         events = build_events(clean, cutoff)
         events["evaluation_group"] = events.event_id.map(groups)
         native[cutoff] = events
     anchor = native[max(config["cutoffs"])].sort_values("event_id").reset_index(drop=True)
+    if (anchor.groupby("evaluation_group").mission_id.nunique() > 1).any():
+        raise ValueError("A related group spans missions")
     folds = assign_folds(anchor, config["folds"], config["split_seed"])
     matched = {}
     for cutoff, events in native.items():

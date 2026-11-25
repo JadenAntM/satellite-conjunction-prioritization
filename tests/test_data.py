@@ -87,3 +87,47 @@ def test_grouped_folds_preserve_related_events():
     assert events.assign(fold=folds).groupby("evaluation_group").fold.nunique().max() == 1
     for fold in range(2):
         assert not set(events.evaluation_group[folds == fold]) & set(events.evaluation_group[folds != fold])
+
+
+def test_related_grouping_follows_chains(messages):
+    rows = messages.query("event_id == 1 and time_to_tca in (4, 2)")
+    first = rows[rows.time_to_tca == 4].assign(event_id=7)  # shares event 1's 4-day message
+    second = rows[rows.time_to_tca == 2].assign(event_id=8)  # shares event 1's 2-day message
+    third = second.assign(event_id=9, time_to_tca=1.5, risk=-11.)
+    link = pd.concat([first, third.assign(event_id=7)])  # event 7 also shares event 9's message
+    groups = related_groups(pd.concat([messages, first, second, link, third]).drop_duplicates())
+    assert groups[1] == groups[7] == groups[8] == groups[9] != groups[2]
+
+
+def prepared(messages, tmp_path, monkeypatch, extra=None):
+    import conjunctions.data as data
+    raw = messages if extra is None else pd.concat([messages, extra], ignore_index=True)
+    monkeypatch.setattr(data, "read_messages", lambda archive: raw)
+    monkeypatch.setattr(data, "verify_archive", lambda archive: "test")
+    config = {"cutoffs": [2, 3, 4], "folds": 2, "split_seed": 1}
+    return data.prepare("unused.zip", tmp_path / "processed", config), tmp_path / "processed"
+
+
+def test_prepare_writes_matched_tables_and_protects_output(messages, tmp_path, monkeypatch):
+    audit, directory = prepared(messages, tmp_path, monkeypatch)
+    assert audit["matched_events"] == 4 and audit["matched_positives"] == 2
+    tables = [pd.read_csv(directory / f"matched_k{k}.csv") for k in (2, 3, 4)]
+    keys = ["event_id", "label", "evaluation_group", "fold"]
+    for table in tables[1:]:
+        pd.testing.assert_frame_equal(table[keys], tables[0][keys])
+    pd.testing.assert_frame_equal(pd.read_csv(directory / "splits.csv")[keys], tables[0][keys])
+    assert [t.visible_count.tolist() for t in tables] == [[2] * 4, [1] * 4, [1] * 4]
+    with pytest.raises(FileExistsError):
+        prepared(messages, tmp_path, monkeypatch)
+
+
+def test_quarantined_event_cannot_bridge_missions(messages, tmp_path, monkeypatch):
+    # Event 20 copies messages from event 1 (mission 3) and event 3 (mission 5): it is quarantined
+    # for inconsistent missions and must not join events 1 and 3 into one group.
+    bridge = pd.concat([messages.query("event_id == 1 and time_to_tca == 4"),
+                        messages.query("event_id == 3 and time_to_tca == 2")]).assign(event_id=20)
+    audit, directory = prepared(messages, tmp_path, monkeypatch, bridge)
+    assert audit["quarantined_events"] == [20]
+    table = pd.read_csv(directory / "matched_k3.csv").set_index("event_id")
+    assert table.evaluation_group[1] != table.evaluation_group[3]
+    assert table.groupby("evaluation_group").mission_id.nunique().max() == 1
