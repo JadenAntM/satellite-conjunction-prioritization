@@ -37,7 +37,7 @@ python -m conjunctions run --name main
 To describe the prepared population and features for the report (counts, chaser classes, sequence lengths, per-feature missingness and preprocessing, LaTeX tables and a figure) without fitting anything:
 
 ```bash
-python -m conjunctions describe --output results/data_summary/main
+python -m conjunctions describe --archive data/raw/esa_collision_dataset.zip --output results/data_summary/main
 ```
 
 `run` trains the fixed Logistic Regression, Random Forest and Histogram Gradient Boosting comparisons, saves out-of-fold predictions, and calculates ranking, probability and review-budget metrics. It performs 180 fits for the default main experiment. Runtime varies by machine. Existing processed data or run directories are protected from overwriting; use a new directory/name when intentionally changing a configuration.

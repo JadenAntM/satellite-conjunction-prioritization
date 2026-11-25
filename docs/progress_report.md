@@ -7,10 +7,10 @@ Group 69 studies early satellite conjunction prioritization: whether the latest 
 After `prepare`, export dataset and feature tables (no model fitting):
 
 ```bash
-python -m conjunctions describe --output results/data_summary/main
+python -m conjunctions describe --archive data/raw/esa_collision_dataset.zip --output results/data_summary/main
 ```
 
-`SUMMARY.md` gives the cleaning counts, cohort, chaser classes and feature missingness. `dataset_tables.tex` holds population, chaser-class and feature-group tables for the template. `dataset_overview.png` shows visible-message counts and latest log-risk by endpoint. The command checks that every cutoff table shares the same events, labels, groups and folds, and refuses existing output directories.
+`SUMMARY.md` gives the cleaning counts, cohort, chaser classes and feature missingness. `dataset_tables.tex` holds population, chaser-class and feature-group tables for the template. `dataset_overview.png` shows visible-message counts and latest log-risk by endpoint. With `--archive`, `attrition.csv` breaks down why events are ineligible and is checked against the preparation audit; `group_sizes.csv` shows how many related groups join more than one event. `docs/report/dataset_features.tex` is a draft of the Dataset and Inputs sections built from these outputs. The command checks that every cutoff table shares the same events, labels, groups and folds, and refuses existing output directories.
 
 ## Generate evidence without retraining
 
