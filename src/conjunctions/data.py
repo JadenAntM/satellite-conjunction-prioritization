@@ -136,5 +136,5 @@ def prepare(archive, directory, config):
         native_counts=[{"cutoff": k, "events": len(d), "positives": int(d.label.sum())} for k, d in native.items()],
         preparation_config=config,
     )
-    (directory / "audit.json").write_text(json.dumps(audit, indent=2))
+    (directory / "audit.json").write_text(json.dumps(audit, indent=2), encoding="utf-8")
     return audit

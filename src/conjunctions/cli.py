@@ -17,6 +17,14 @@ from .experiment import run_experiment, summarize_run
 def read_config(path):
     with Path(path).open("rb") as stream:
         config = tomllib.load(stream)
+    required = ["cutoffs", "primary_cutoff", "information_sets", "families", "folds", "split_seed",
+                "bootstrap_seed", "bootstrap_repeats", "budgets"]
+    missing = [key for key in required if key not in config]
+    if missing:
+        raise ValueError(f"Config is missing: {', '.join(missing)}")
+    for key in ["primary_cutoff", "folds", "split_seed", "bootstrap_seed", "bootstrap_repeats"]:
+        if not isinstance(config[key], int) or isinstance(config[key], bool):
+            raise ValueError(f"{key} must be an integer")
     cutoffs = config["cutoffs"]
     if not cutoffs or len(set(cutoffs)) != len(cutoffs) or any(k not in (2, 3, 4) for k in cutoffs):
         raise ValueError("Use unique cutoffs drawn from 2, 3, 4 days")

@@ -36,7 +36,7 @@ def review_weights(scores, fraction):
 
 def load_predictions(run):
     run = Path(run)
-    manifest = json.loads((run / "manifest.json").read_text())
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
     if "completed_utc" not in manifest:
         raise ValueError("Milestone export requires a completed run")
     if sha256(run / "predictions.csv") != manifest["prediction_sha256"]:
@@ -92,7 +92,7 @@ def write_latex(table, output, cutoff):
     lines += [r"\hline", r"\end{tabular}",
               f"\\caption{{Exploratory {cutoff}-day out-of-fold results. Hits, misses, precision and recall use a 5\\% review budget; boundary ties share capacity.}}",
               r"\label{tab:primary-results}", r"\end{table*}"]
-    (output / "primary_results.tex").write_text("\n".join(lines) + "\n")
+    (output / "primary_results.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def make_figures(events, names, output):
@@ -167,7 +167,7 @@ byId('prev').onclick=()=>{page--;draw()};byId('next').onclick=()=>{page++;draw()
 </script></html>'''
     for key, value in {"__CUTOFF__": str(cutoff), "__NOTICE__": html.escape(NOTICE), "__OPTIONS__": options, "__DATA__": payload}.items():
         page = page.replace(key, value)
-    (output / "ranking_demo.html").write_text(page)
+    (output / "ranking_demo.html").write_text(page, encoding="utf-8")
 
 
 def export_milestone(run, output):
@@ -247,12 +247,12 @@ Late threshold crossing means latest visible log-risk < -6 and final log-risk >=
 
 The exporter reads saved predictions without refitting models or changing the source run. Point estimates are recomputed from predictions, not copied from potentially stale summary CSVs. No model, cutoff, or decision threshold is selected by this export.
 """
-    (output / "REPORT_GUIDE.md").write_text(text)
+    (output / "REPORT_GUIDE.md").write_text(text, encoding="utf-8")
     provenance = {"source_run": run.name, "source_manifest_sha256": sha256(run / "manifest.json"),
                   "prediction_sha256": manifest["prediction_sha256"], "scheme": manifest["scheme"],
                   "primary_cutoff": primary, "source_completed_utc": manifest["completed_utc"],
                   "evidence_status": NOTICE,
                   "export_source_sha256": {p.name: sha256(p) for p in Path(__file__).parent.glob("*.py")}}
     provenance["output_sha256"] = {p.name: sha256(p) for p in output.iterdir() if p.is_file()}
-    (output / "export_manifest.json").write_text(json.dumps(provenance, indent=2))
+    (output / "export_manifest.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
     return output

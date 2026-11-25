@@ -34,7 +34,7 @@ def fit_calibrators(inner_scores, labels, outer_scores):
 
 def calibrate_run(directory, output):
     output = Path(output)
-    manifest = json.loads((output / "manifest.json").read_text())
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     if manifest["scheme"] != "event" or "completed_utc" not in manifest:
         raise ValueError("Calibration requires a completed grouped event run")
     if sha256(output / "predictions.csv") != manifest["prediction_sha256"]:
@@ -101,4 +101,4 @@ def calibrate_run(directory, output):
                          "observed_rate": rate, "wilson_lo": center - half, "wilson_hi": center + half})
     pd.DataFrame(metrics).to_csv(destination / "metrics.csv", index=False)
     pd.DataFrame(bins).to_csv(destination / "reliability.csv", index=False)
-    (destination / "provenance.json").write_text(json.dumps(audit, indent=2))
+    (destination / "provenance.json").write_text(json.dumps(audit, indent=2), encoding="utf-8")

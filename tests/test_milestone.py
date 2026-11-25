@@ -49,7 +49,9 @@ def test_export_accounts_for_tied_errors_and_preserves_source(saved_run, tmp_pat
     assert events.loc[4, "history_rank_gain"] < 0
     assert events.loc[1, "history_rank_gain"] > 0
     assert {p.name: p.read_bytes() for p in saved_run.iterdir()} == original
-    demo = (output / "ranking_demo.html").read_text()
+    # The page declares UTF-8, so its bytes must decode as UTF-8 whatever the platform default is.
+    demo = (output / "ranking_demo.html").read_bytes().decode("utf-8")
+    assert '<meta charset="utf-8">' in demo and "–" in demo
     assert "__DATA__" not in demo and 'id="reveal" type="checkbox">' in demo
     manifest = json.loads((output / "export_manifest.json").read_text())
     assert all(sha256(output / name) == digest for name, digest in manifest["output_sha256"].items())

@@ -29,6 +29,18 @@ The optional leave-one-mission-out run evaluates A Logistic and B/D Random Fores
 | Random Forest | 200 trees, depth≤8, leaf≥10, two workers, seed=42 |
 | Histogram Gradient Boosting | 150 iterations, learning rate=.05, leaves≤15, L2=1, no early stopping, seed=42 |
 
+### Objectives and optimization
+
+All three are binary classifiers fitted to the endpoint label without class weights. Scores are `predict_proba` for the positive class.
+
+- **Logistic Regression** minimizes the mean logistic (cross-entropy) loss plus an L2 penalty on the weights (strength 1/C, C=1). It is solved with L-BFGS, a quasi-Newton method, to tolerance 1e-4 or 3,000 iterations. Inputs are standardized on the training fold.
+- **Random Forest** grows 200 classification trees, each on a bootstrap sample of the training fold. Each split greedily minimizes Gini impurity over a random √p subset of features, with depth ≤ 8 and leaves of at least 10 events. The predicted probability is the mean of the trees' leaf class fractions. There is no global loss or gradient step.
+- **Histogram Gradient Boosting** minimizes binary log loss by adding 150 regression trees in sequence. Each tree is fitted to the gradient and Hessian of the loss at the current predictions (a Newton step), with features binned into at most 255 histogram bins. Each step is shrunk by a learning rate of 0.05, and leaf values carry an L2 penalty of 1.
+
+These settings are fixed before evaluation and are not tuned on evaluation folds.
+
+### Preprocessing
+
 Numeric fields receive training median imputation with missing indicators. Latest log-risk and `history__risk__*` retain their scale; other numeric fields receive signed log1p to soften tails. The object type receives training-fitted category encoding, with unseen categories ignored. IDs are never categorical features.
 
 ## Class imbalance
@@ -40,6 +52,8 @@ If weighting/sampling is later investigated, apply it only inside training folds
 ## Metrics and capacity
 
 Average Precision is primary. Report ROC-AUC, Brier/log loss for binary-endpoint probabilities, and analyst-budget metrics at 1/2/5/10%: reviews, high endpoints captured/missed, final-low reviews, precision, recall, prevalence lift and incremental capture over latest risk. Raw log-risk receives ranking metrics but no Brier/log loss.
+
+`training_prevalence` is the majority-style baseline: every evaluation event gets the training fold's positive rate. It is a probability reference for Brier and log loss. Its score is constant within a fold, so its pooled AP, ROC-AUC and budget figures only reflect differences between folds and should not be read as ranking skill. Majority-class accuracy is 98.2% while capturing no high endpoints.
 
 Capacity is ceil(N × budget). Boundary ties receive their expected label-blind allocation, avoiding label-based sorting. Minimum review fractions for 80/90/95% capture include whole boundary ties. These are retrospective workload curves and cannot be used as evaluation-label-fitted deployment thresholds. A final-low review is not proof of unnecessary work.
 
