@@ -34,6 +34,12 @@ python -m conjunctions run --name main
 
 `prepare` builds event-level representations at two, three and four days, retains the same four-day-eligible events at every horizon, and assigns identical grouped folds. For this release the common population is **8,694 events, including 160 positive endpoints (1.84%)**, grouped into 8,637 conservative related-event groups across 19 missions.
 
+To describe the prepared population and features for the report (counts, chaser classes, sequence lengths, per-feature missingness and preprocessing, LaTeX tables and a figure) without fitting anything:
+
+```bash
+python -m conjunctions describe --archive data/raw/esa_collision_dataset.zip --output results/data_summary/main
+```
+
 `run` trains the fixed Logistic Regression, Random Forest and Histogram Gradient Boosting comparisons, saves out-of-fold predictions, and calculates ranking, probability and review-budget metrics. It performs 180 fits for the default main experiment. Runtime varies by machine. Existing processed data or run directories are protected from overwriting; use a new directory/name when intentionally changing a configuration.
 
 ```bash

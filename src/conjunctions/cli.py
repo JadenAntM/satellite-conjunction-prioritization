@@ -1,4 +1,4 @@
-"""Project command line: preparation, experiments, calibration and milestone exports."""
+"""Project command line: preparation, dataset description, experiments, calibration and milestone exports."""
 
 import os
 os.environ.setdefault("OMP_NUM_THREADS", "2")
@@ -43,6 +43,10 @@ def main(argv=None):
     prep = commands.add_parser("prepare", help="Construct matched cutoff-safe events and group folds")
     prep.add_argument("--archive", default="data/raw/esa_collision_dataset.zip")
     prep.add_argument("--output", default="data/processed")
+    describe = commands.add_parser("describe", help="Export dataset/feature tables and figures from prepared data")
+    describe.add_argument("--processed", default="data/processed")
+    describe.add_argument("--output", required=True, help="New output directory; existing directories are protected")
+    describe.add_argument("--archive", help="Optional verified archive, to also report event eligibility attrition")
     run = commands.add_parser("run", help="Fit the fixed experiment and summarize saved OOF predictions")
     run.add_argument("--processed", default="data/processed")
     run.add_argument("--results", default="results/runs")
@@ -62,6 +66,9 @@ def main(argv=None):
             print(download_archive(args.directory))
         elif args.command == "prepare":
             print(json.dumps(prepare(args.archive, args.output, read_config(args.config)), indent=2))
+        elif args.command == "describe":
+            from .describe import describe_dataset
+            print(f"Dataset summary: {describe_dataset(args.processed, args.output, args.archive)}")
         elif args.command == "run":
             output = run_experiment(args.processed, args.results, args.name, read_config(args.config), args.scheme)
             summarize_run(output)

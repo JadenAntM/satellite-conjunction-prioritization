@@ -2,6 +2,16 @@
 
 Group 69 studies early satellite conjunction prioritization: whether the latest full CDM improves over latest risk, and whether visible history adds value beyond the snapshot. Three days is primary. The target is a high-risk final qualifying CDM, not an observed collision. The satellite project is the current team direction.
 
+## Describe the prepared dataset
+
+After `prepare`, export dataset and feature tables (no model fitting):
+
+```bash
+python -m conjunctions describe --archive data/raw/esa_collision_dataset.zip --output results/data_summary/main
+```
+
+`SUMMARY.md` gives the cleaning counts, cohort, chaser classes and feature missingness. `dataset_tables.tex` holds population, chaser-class and feature-group tables for the template. `dataset_overview.png` shows visible-message counts and latest log-risk by endpoint. With `--archive`, `attrition.csv` breaks down why events are ineligible and is checked against the preparation audit; `group_sizes.csv` shows how many related groups join more than one event. `docs/report/dataset_features.tex` is a draft of the Dataset and Inputs sections built from these outputs. The command checks that every cutoff table shares the same events, labels, groups and folds, and refuses existing output directories.
+
 ## Generate evidence without retraining
 
 From the repository root after completing the main run:
@@ -20,13 +30,14 @@ The supplied Fall 2026 instructions state November 10 as the due date; they do n
 
 | Item | Weight | Evidence and explanation |
 | --- | --- | --- |
-| Dataset and preprocessing | 15% | `docs/data.md`, preparation audit: source/license, raw vs event counts, matched cohort, labels, exclusion rules, cleaning and fold-fitted imputation. No manual annotation is used. |
+| Dataset and preprocessing | 10% | `docs/data.md`, preparation audit, `describe` export: source/license, raw vs event counts, matched cohort, labels, exclusion rules, cleaning and fold-fitted imputation. No manual annotation is used. |
 | Introduction and related work | 10% | Adapt the proposal's motivation; cite at least five relevant references in the report. The proposal has four. Explain relationships to prior work rather than listing citations. |
-| Inputs and features | 10% | Explain A/B/C/D and dimensions, causal history statistics, categorical encoding, exclusions and selection. C contains levels as well as trends. |
+| Inputs and features | 10% | `feature_inventory.csv`/`feature_groups.csv` from `describe`. Explain A/B/C/D and dimensions, causal history statistics, categorical encoding, exclusions and selection. C contains levels as well as trends. |
 | Model implementation | 20% | `src/conjunctions/models.py`, config and run manifest: describe learning objective/split criterion, optimization/training procedure and important settings for models actually run. Include a simple baseline and latest-risk ranking. |
-| Evaluation and preliminary results | 20% | `docs/experiment.md`, verified exported tables, original paired intervals and fold metrics: explain grouped CV, matched cutoffs, AP, budget precision/recall, uncertainty and limits. |
-| TA feedback, reflection and plans | 20% | Record actual feedback and responses, what changed since the proposal, findings that affect next steps, and feasible remaining tasks. No explicit TA approval is required. |
+| Evaluation and preliminary results | 17% | `docs/experiment.md`, verified exported tables, original paired intervals and fold metrics: explain grouped CV, matched cutoffs, AP, budget precision/recall, uncertainty and limits. |
+| TA feedback, reflection and plans | 18% | Record actual feedback and responses, what changed since the proposal, findings that affect next steps, and feasible remaining tasks. No explicit TA approval is required. |
 | Team contributions | 5% | Accurate completed contributions from Jaden Moore, Varun Pathak and Lukhsaan Elankumaran; confirm with each person. Do not infer contributions from this checklist. |
+| Organization and presentation | 10% | Well-organized, professional document in the supplied template. |
 
 Follow the template's Introduction, Related Work, Dataset, Features, Implementation, Results and Evaluation, Feedback and Plans, and Team Contributions sections. Remove instructional examples and placeholder bibliography entries.
 

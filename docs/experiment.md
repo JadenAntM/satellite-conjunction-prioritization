@@ -13,6 +13,8 @@ Three days is primary. Two and four days are matched sensitivities using identic
 - C: sequence count/span and six causal statistics for risk, miss distance and radial/along-track/cross-track target/chaser position sigmas: mean, population SD, maximum, first-to-latest change, change per visible day and last change (50 fields).
 - D: B + C, 147 fields.
 
+Mean, SD and maximum skip missing values. Change, rate and last change use the first, latest and previous visible messages as they are, so they are missing when either endpoint is missing; a one-message history has SD and change 0 and missing rate and last change. Risk has a floor of −30 in the release (many low-risk messages sit there), and risk summaries include those floor values as given.
+
 C includes level information and can equal the latest value for a one-message visible sequence. It is not pure evolution. D−B isolates incremental history for the chosen estimators. A null result does not prove histories contain no useful information for every possible model.
 
 ## Splitting and leakage prevention
