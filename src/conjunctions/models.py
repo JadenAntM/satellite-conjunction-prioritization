@@ -15,12 +15,18 @@ def signed_log(values):
     return np.sign(values) * np.log1p(np.abs(values))
 
 
-def make_model(family, information):
-    columns = feature_columns(information)
+def transform_groups(columns):
+    """Preprocessing route per feature: one-hot category, unscaled log-risk, or signed log1p."""
     categorical = [c for c in columns if c == "latest__c_object_type"]
     numeric = [c for c in columns if c not in categorical]
     plain = [c for c in numeric if "__risk" in c]
     logged = [c for c in numeric if c not in plain]
+    return {"categorical": categorical, "plain": plain, "logged": logged}
+
+
+def make_model(family, information):
+    groups = transform_groups(feature_columns(information))
+    categorical, plain, logged = groups["categorical"], groups["plain"], groups["logged"]
     blocks = []
     for name, fields, transform in [("plain", plain, False), ("logged", logged, True)]:
         if not fields:
